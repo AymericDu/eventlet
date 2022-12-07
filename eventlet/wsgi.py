@@ -482,6 +482,8 @@ class HttpProtocol(BaseHTTPServer.BaseHTTPRequestHandler):
         # Status code of 1xx or 204 or 2xx to CONNECT request MUST NOT send body and related headers
         # https://httpwg.org/specs/rfc7230.html#rfc.section.3.3.1
         bodyless = [False]
+        if self.command == 'HEAD':
+            bodyless[0] = True
 
         def write(data):
             towrite = []
@@ -513,10 +515,12 @@ class HttpProtocol(BaseHTTPServer.BaseHTTPRequestHandler):
                     self.close_connection = 1
 
                 if 'content-length' not in header_list:
-                    if not bodyless[0] and self.request_version == 'HTTP/1.1':
+                    if bodyless[0]:
+                        pass  # client doesn't expect a body anyway
+                    elif self.request_version == 'HTTP/1.1':
                         use_chunked[0] = True
                         towrite.append(b'Transfer-Encoding: chunked\r\n')
-                    elif 'content-length' not in header_list:
+                    else:
                         # client is 1.0 and therefore must read to EOF
                         self.close_connection = 1
 
@@ -547,7 +551,7 @@ class HttpProtocol(BaseHTTPServer.BaseHTTPRequestHandler):
                     # Avoid dangling circular ref
                     exc_info = None
 
-            bodyless[0] = (
+            bodyless[0] = bodyless[0] or (
                 status_code[0] == 204
                 or (100 <= status_code[0] < 200)
                 or (self.command == "CONNECT" and 200 <= status_code[0] < 300)
